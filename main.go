@@ -66,6 +66,7 @@ var (
 	DashService              DashboardServiceSender
 	CertificateManager       *certs.CertificateManager
 	NewRelicApplication      newrelic.Application
+	DQLManager               *DQL
 
 	apisMu   sync.RWMutex
 	apiSpecs []*APISpec
@@ -1001,9 +1002,6 @@ func main() {
 
 	mainLog.Info("Stop signal received.")
 
-	// stop quota counters
-	sessionLimiter.stopCounters()
-
 	// stop analytics workers
 	if config.Global().EnableAnalytics && analytics.Store == nil {
 		analytics.Stop()
@@ -1158,6 +1156,7 @@ func handleDashboardRegistration() {
 }
 
 var drlOnce sync.Once
+var dqlOnce sync.Once
 
 func startDRL() {
 	switch {
@@ -1171,6 +1170,24 @@ func startDRL() {
 	mainLog.Info("Initialising distributed rate limiter")
 	setupDRL()
 	startRateLimitNotifications()
+}
+
+func startDQL() {
+	if config.Global().ManagementNode {
+		mainLog.Info("Management node, skip initialising distributed quota limiter")
+		return
+	}
+
+	if !config.Global().ChunkedQuota.EnableChunkedQuota {
+		mainLog.Info("Chunked quota is not enabled, skip initialising distributed quota limiter")
+		return
+	}
+
+	mainLog.Info("Initialising distributed quota limiter")
+	DQLManager = NewDQL(
+		getGlobalStorageHandler("dql-", false),
+	)
+	// TODO: start notifications ??
 }
 
 // mainHandler's only purpose is to allow mainRouter to be dynamically replaced
@@ -1325,6 +1342,9 @@ func listen(listener, controlListener net.Listener, err error) {
 
 	// at this point NodeID is ready to use by DRL
 	drlOnce.Do(startDRL)
+
+	// start distributed quote limiter
+	dqlOnce.Do(startDQL)
 
 	address := config.Global().ListenAddress
 	if config.Global().ListenAddress == "" {

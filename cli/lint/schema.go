@@ -753,11 +753,23 @@ const confSchema = `{
 	"regexp_cache_expire": {
 		"type": "integer"
 	},
-	"distributed_quota_enabled": {
-		"type": "boolean"
-	},
-	"distributed_quota_sync_frequency": {
-		"type": "integer"
+	"chunked_quota": {
+		"type": ["object", "null"],
+		"additionalProperties": false,
+		"properties": {
+			"enable_chunked_quota": {
+				"type": "boolean"
+			},
+			"quota_chunk_size": {
+				"type": "integer"
+			},
+			"chunk_return_timeout": {
+				"type": "integer"
+			},
+			"chunk_return_part": {
+				"type": "integer"
+			}
+		}
 	}
 }
 }`
